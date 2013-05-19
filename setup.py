@@ -7,8 +7,8 @@ setup(
     description="",
     long_description=open('README.rst').read(),
     url="https://github.com/dougn/python-plantuml/",
-    author=testtrackpro.__author__,
-    author_email=testtrackpro.__email__,
+    author=plantuml.__author__,
+    author_email=plantuml.__email__,
     license="BSD",
     py_modules=['plantuml'],
     classifiers=[
