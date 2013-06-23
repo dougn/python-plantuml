@@ -1,11 +1,10 @@
 """
 """
 import zlib
-import httplib2
 import os
 import sys
 
-__version__ = [0,1,0]
+__version__ = [0,1,1]
 __version_string__ = '.'.join(str(x) for x in __version__)
 
 __author__ = 'Doug Napoleone'
@@ -114,6 +113,8 @@ class PlantUML(object):
     """
     def __init__(self, url=SERVER_URL, basic_auth={}, form_auth={},
                  http_opts={}, request_opts={}):
+        import httplib2
+        self.HttpLib2Error = httplib2.HttpLib2Error
         self.url = url
         self.request_opts = request_opts
         self.auth_type = 'basic_auth' if basic_auth else (
@@ -146,7 +147,7 @@ class PlantUML(object):
                 response, content = http.request(
                     login_url, method, headers=headers,
                     body=urllib.urlencode(body))
-            except HttpLib2Error, e:
+            except self.HttpLib2Error, e:
                 raise PlantUMLConnectionError(e)
             if response.status != 200:
                 raise PlantUMLHTTPError(response, content)
@@ -170,7 +171,7 @@ class PlantUML(object):
         url = self.get_url(plantuml_text)
         try:
             response, content = self.http.request(url, **self.request_opts)
-        except HttpLib2Error, e:
+        except self.HttpLib2Error, e:
             raise PlantUMLConnectionError(e)
         if response.status != 200:
             raise PlantUMLHTTPError(response, content)
