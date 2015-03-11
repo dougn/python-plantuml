@@ -1,4 +1,3 @@
 sphinx
 sphinx-PyPI-upload
 httplib2
-
