@@ -1,18 +1,17 @@
-"""
-"""
-import zlib
-import os
-import sys
-import urllib
+#!/usr/bin/env python
 
-__version__ = [0, 1, 2]
+from argparse import ArgumentParser
+from os import environ, path, makedirs
+from urllib import urlencode
+from zlib import compress
+
+import httplib2
+
+__version__ = 0, 2, 0
 __version_string__ = '.'.join(str(x) for x in __version__)
 
-__author__ = 'Doug Napoleone'
+__author__ = 'Doug Napoleone, Samuel Marks'
 __email__ = 'doug.napoleone+plantuml@gmail.com'
-
-#: Default plantuml service url
-SERVER_URL = 'http://www.plantuml.com/plantuml/img/'
 
 
 class PlantUMLError(Exception):
@@ -46,7 +45,7 @@ class PlantUMLHTTPError(PlantUMLConnectionError):
 def deflate_and_encode(plantuml_text):
     """zlib compress the plantuml text and encode it for the plantuml server.
     """
-    zlibbed_str = zlib.compress(plantuml_text)
+    zlibbed_str = compress(plantuml_text)
     compressed_string = zlibbed_str[2:-4]
     return encode(compressed_string)
 
@@ -124,10 +123,8 @@ class PlantUML(object):
                     
     """
 
-    def __init__(self, url=SERVER_URL, basic_auth={}, form_auth={},
+    def __init__(self, url, basic_auth={}, form_auth={},
                  http_opts={}, request_opts={}):
-        import httplib2
-
         self.HttpLib2Error = httplib2.HttpLib2Error
         self.url = url
         self.request_opts = request_opts
@@ -141,7 +138,7 @@ class PlantUML(object):
             from urlparse import urlparse
             import socks
 
-            proxy_uri = urlparse(os.environ.get('HTTPS_PROXY', os.environ.get('HTTP_PROXY')))
+            proxy_uri = urlparse(environ.get('HTTPS_PROXY', environ.get('HTTP_PROXY')))
             if proxy_uri:
                 proxy = {'proxy_info': httplib2.ProxyInfo(socks.PROXY_TYPE_HTTP,
                                                           proxy_uri.hostname, proxy_uri.port)}
@@ -174,7 +171,7 @@ class PlantUML(object):
             try:
                 response, content = self.http.request(
                     login_url, method, headers=headers,
-                    body=urllib.urlencode(body))
+                    body=urlencode(body))
             except self.HttpLib2Error, e:
                 raise PlantUMLConnectionError(e)
             if response.status != 200:
@@ -205,7 +202,7 @@ class PlantUML(object):
             raise PlantUMLHTTPError(response, content)
         return content
 
-    def processes_file(self, filename, outfile=None, errorfile=None):
+    def processes_file(self, filename, outfile=None, errorfile=None, directory=''):
         """Take a filename of a file containing plantuml text and processes
         it into a .png image.
         
@@ -221,31 +218,40 @@ class PlantUML(object):
                     an error written to ``errorfile``.
         """
         if outfile is None:
-            outfile = os.path.splitext(filename)[0] + '.png'
+            outfile = path.splitext(filename)[0] + '.png'
         if errorfile is None:
-            errorfile = os.path.splitext(filename)[0] + '_error.html'
+            errorfile = path.splitext(filename)[0] + '_error.html'
+        if directory and not path.exists(directory):
+            makedirs(directory)
         data = open(filename, 'U').read()
         try:
             content = self.processes(data)
         except PlantUMLHTTPError, e:
-            err = open(errorfile, 'w')
+            err = open(path.join(directory, errorfile), 'w')
             err.write(e.content)
             err.close()
             return False
-        out = open(outfile, 'wb')
+        out = open(path.join(directory, outfile), 'wb')
         out.write(content)
         out.close()
         return True
 
 
+def _build_parser():
+    parser = ArgumentParser(description='Generate images from plantuml defined files using plantuml server')
+    parser.add_argument('files', metavar='filename', nargs='+',
+                        help='file(s) to generate images from')
+    parser.add_argument('-o', '--out', default='',
+                        help='directory to put the files into')
+    parser.add_argument('-s', '--server', default='http://www.plantuml.com/plantuml/img/',
+                        help='server to generate from, defaults to plantuml.com')
+    return parser
+
+
 def main():
-    pl = PlantUML()
-    for filename in sys.argv[1:]:
-        print filename + ':',
-        if pl.processes_file(filename):
-            print 'success.'
-        else:
-            print 'failure.'
+    args = _build_parser().parse_args()
+    pl = PlantUML(args.server)
+    print map(lambda filename: {filename: pl.processes_file(filename, directory=args.out)}, args.files)
 
 
 if __name__ == '__main__':

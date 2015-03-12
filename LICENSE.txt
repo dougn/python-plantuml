@@ -1,4 +1,4 @@
-Copyright (c) 2013, Doug Napoleone
+Copyright (c) 2013, Doug Napoleone and then Copyright (c) 2015, Samuel Marks
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
