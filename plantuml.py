@@ -7,7 +7,7 @@ from zlib import compress
 
 import httplib2
 
-__version__ = 0, 2, 0
+__version__ = 0, 2, 1
 __version_string__ = '.'.join(str(x) for x in __version__)
 
 __author__ = 'Doug Napoleone, Samuel Marks'
@@ -244,14 +244,15 @@ def _build_parser():
     parser.add_argument('-o', '--out', default='',
                         help='directory to put the files into')
     parser.add_argument('-s', '--server', default='http://www.plantuml.com/plantuml/img/',
-                        help='server to generate from, defaults to plantuml.com')
+                        help='server to generate from, defaults to "http://www.plantuml.com/plantuml/img/"')
     return parser
 
 
 def main():
     args = _build_parser().parse_args()
     pl = PlantUML(args.server)
-    print map(lambda filename: {filename: pl.processes_file(filename, directory=args.out)}, args.files)
+    print map(lambda filename: {'filename': filename,
+                                'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)
 
 
 if __name__ == '__main__':
