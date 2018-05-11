@@ -1,14 +1,20 @@
-"""
-"""
+from __future__ import print_function
 import zlib
 import os
 import sys
 
-__version__ = [0,1,1]
+__version__ = [0,2,1]
 __version_string__ = '.'.join(str(x) for x in __version__)
 
 __author__ = 'Doug Napoleone'
 __email__ = 'doug.napoleone+plantuml@gmail.com'
+
+"""
+Python 3 compatibilty added by Andy Bulka abulka@gmail.com, backwards compatible with Python 2.
+The encode() and decode() calls in deflate_and_encode() should be double checked - but seems to work ok.  
+The 'latin-1' encoding seems to achieve the solution of converting non printable chars in the byte array into 
+non printable chars in a string, which encode() expects.  But there may be a better way.
+"""
 
 #: Default plantuml service url
 SERVER_URL = 'http://www.plantuml.com/plantuml/img/'
@@ -37,16 +43,16 @@ class PlantUMLHTTPError(PlantUMLConnectionError):
 def deflate_and_encode(plantuml_text):
     """zlib compress the plantuml text and encode it for the plantuml server.
     """
-    zlibbed_str = zlib.compress(plantuml_text)
+    zlibbed_str = zlib.compress(plantuml_text.encode('utf-8'))
     compressed_string = zlibbed_str[2:-4]
-    return encode(compressed_string)
+    return encode(compressed_string.decode('latin-1'))
 
 def encode(data):
     """encode the plantuml data which may be compresses in the proper
     encoding for the plantuml server
     """
     res = ""
-    for i in xrange(0,len(data), 3):
+    for i in range(0,len(data), 3):
         if (i+2==len(data)):
             res += _encode3bytes(ord(data[i]), ord(data[i+1]), 0)
         elif (i+1==len(data)):
@@ -146,8 +152,8 @@ class PlantUML(object):
             try:
                 response, content = http.request(
                     login_url, method, headers=headers,
-                    body=urllib.urlencode(body))
-            except self.HttpLib2Error, e:
+                    body=urllib.parse.urlencode(body))
+            except self.HttpLib2Error as e:
                 raise PlantUMLConnectionError(e)
             if response.status != 200:
                 raise PlantUMLHTTPError(response, content)
@@ -171,7 +177,7 @@ class PlantUML(object):
         url = self.get_url(plantuml_text)
         try:
             response, content = self.http.request(url, **self.request_opts)
-        except self.HttpLib2Error, e:
+        except self.HttpLib2Error as e:
             raise PlantUMLConnectionError(e)
         if response.status != 200:
             raise PlantUMLHTTPError(response, content)
@@ -199,7 +205,7 @@ class PlantUML(object):
         data = open(filename, 'U').read()
         try:
             content = self.processes(data)
-        except PlantUMLHTTPError, e:
+        except PlantUMLHTTPError as e:
             err = open(errorfile, 'w')
             err.write(e.content)
             err.close()
@@ -212,9 +218,9 @@ class PlantUML(object):
 if __name__ == '__main__':
     pl = PlantUML()
     for filename in sys.argv[1:]:
-        print filename+':', 
+        print(filename+':', end=' ') 
         if pl.processes_file(filename):
-            print 'success.'
+            print('success.')
         else:
-            print 'failure.'
+            print('failure.')
     
