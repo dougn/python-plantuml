@@ -1,3 +1,4 @@
 sphinx
-sphinx-PyPI-upload
 httplib2
+twine
+wheel
