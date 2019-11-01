@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
+from io import open
 from os import environ, path, makedirs
 from six.moves.urllib.parse import urlencode
 from six.moves import xrange
@@ -224,7 +225,7 @@ class PlantUML(object):
             errorfile = path.splitext(filename)[0] + '_error.html'
         if directory and not path.exists(directory):
             makedirs(directory)
-        data = open(filename, 'U').read()
+        data = open(filename).read()
         try:
             content = self.processes(data)
         except PlantUMLHTTPError as e:
