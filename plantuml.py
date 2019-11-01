@@ -1,37 +1,54 @@
-from __future__ import print_function
-import zlib
-import os
-import sys
+#!/usr/bin/env python
 
-__version__ = [0,2,1]
+from __future__ import print_function
+
+import base64
+import string
+from argparse import ArgumentParser
+from io import open
+from os import environ, path, makedirs
+from zlib import compress
+
+import httplib2
+import six
+from six.moves.urllib.parse import urlencode
+
+if six.PY2:
+    from string import maketrans
+else:
+    maketrans = bytes.maketrans
+
+__version__ = 0, 3, 0
 __version_string__ = '.'.join(str(x) for x in __version__)
 
-__author__ = 'Doug Napoleone'
+__author__ = 'Doug Napoleone, Samuel Marks, Eric Frederich'
 __email__ = 'doug.napoleone+plantuml@gmail.com'
 
-"""
-Python 3 compatibilty added by Andy Bulka abulka@gmail.com, backwards compatible with Python 2.
-The encode() and decode() calls in deflate_and_encode() should be double checked - but seems to work ok.  
-The 'latin-1' encoding seems to achieve the solution of converting non printable chars in the byte array into 
-non printable chars in a string, which encode() expects.  But there may be a better way.
-"""
 
-#: Default plantuml service url
-SERVER_URL = 'http://www.plantuml.com/plantuml/img/'
+plantuml_alphabet = string.digits + string.ascii_uppercase + string.ascii_lowercase + '-_'
+base64_alphabet   = string.ascii_uppercase + string.ascii_lowercase + string.digits + '+/'
+b64_to_plantuml = maketrans(base64_alphabet.encode('utf-8'), plantuml_alphabet.encode('utf-8'))
+
 
 class PlantUMLError(Exception):
-    """Error in processing.
+    """
+    Error in processing.
     """
     pass
+
 
 class PlantUMLConnectionError(PlantUMLError):
-    """Error connecting or talking to PlantUML Server.
+    """
+    Error connecting or talking to PlantUML Server.
     """
     pass
 
+
 class PlantUMLHTTPError(PlantUMLConnectionError):
-    """Request to PlantUML server returned HTTP Error.
     """
+    Request to PlantUML server returned HTTP Error.
+    """
+
     def __init__(self, response, content, *args, **kwdargs):
         super(PlantUMLConnectionError, self).__init__(*args, **kwdargs)
         self.response = response
@@ -40,54 +57,13 @@ class PlantUMLHTTPError(PlantUMLConnectionError):
             self.message = "%d: %s" % (
                 self.response.status, self.response.reason)
 
+
 def deflate_and_encode(plantuml_text):
     """zlib compress the plantuml text and encode it for the plantuml server.
     """
-    zlibbed_str = zlib.compress(plantuml_text.encode('utf-8'))
+    zlibbed_str = compress(plantuml_text.encode('utf-8'))
     compressed_string = zlibbed_str[2:-4]
-    return encode(compressed_string.decode('latin-1'))
-
-def encode(data):
-    """encode the plantuml data which may be compresses in the proper
-    encoding for the plantuml server
-    """
-    res = ""
-    for i in range(0,len(data), 3):
-        if (i+2==len(data)):
-            res += _encode3bytes(ord(data[i]), ord(data[i+1]), 0)
-        elif (i+1==len(data)):
-            res += _encode3bytes(ord(data[i]), 0, 0)
-        else:
-            res += _encode3bytes(ord(data[i]), ord(data[i+1]), ord(data[i+2]))
-    return res
-
-def _encode3bytes(b1, b2, b3):
-    c1 = b1 >> 2;
-    c2 = ((b1 & 0x3) << 4) | (b2 >> 4);
-    c3 = ((b2 & 0xF) << 2) | (b3 >> 6);
-    c4 = b3 & 0x3F;
-    res = "";
-    res += _encode6bit(c1 & 0x3F);
-    res += _encode6bit(c2 & 0x3F);
-    res += _encode6bit(c3 & 0x3F);
-    res += _encode6bit(c4 & 0x3F);
-    return res;
-
-def _encode6bit(b):
-    if b < 10:
-        return chr(48 + b)
-    b -= 10
-    if b < 26:
-        return chr(65 + b)
-    b -= 26
-    if b < 26:
-        return chr(97 + b);
-    b -= 26
-    if b == 0:
-        return '-'
-    if b == 1:
-        return '_'
-    return '?'
+    return base64.b64encode(compressed_string).translate(b64_to_plantuml).decode('utf-8')
 
 
 class PlantUML(object):
@@ -117,9 +93,9 @@ class PlantUML(object):
                     httplib2.Http().request() call.
                     
     """
-    def __init__(self, url=SERVER_URL, basic_auth={}, form_auth={},
+
+    def __init__(self, url, basic_auth={}, form_auth={},
                  http_opts={}, request_opts={}):
-        import httplib2
         self.HttpLib2Error = httplib2.HttpLib2Error
         self.url = url
         self.request_opts = request_opts
@@ -127,8 +103,23 @@ class PlantUML(object):
             'form_auth' if form_auth else None)
         self.auth = basic_auth if basic_auth else (
             form_auth if form_auth else None)
-        
+
+        # Proxify
+        try:
+            from urlparse import urlparse
+            import socks
+
+            proxy_uri = urlparse(environ.get('HTTPS_PROXY', environ.get('HTTP_PROXY')))
+            if proxy_uri:
+                proxy = {'proxy_info': httplib2.ProxyInfo(socks.PROXY_TYPE_HTTP,
+                                                          proxy_uri.hostname, proxy_uri.port)}
+                http_opts.update(proxy)
+                self.request_opts.update(proxy)
+        except ImportError:
+            pass
+
         self.http = httplib2.Http(**http_opts)
+
         if self.auth_type == 'basic_auth':
             self.http.add_credentials(
                 self.auth['username'], self.auth['password'])
@@ -147,12 +138,11 @@ class PlantUML(object):
             body = self.auth['body']
             method = self.auth.get('method', 'POST')
             headers = self.auth.get(
-                'headers',{'Content-type':'application/x-www-form-urlencoded'})
-            
+                'headers', {'Content-type': 'application/x-www-form-urlencoded'})
             try:
-                response, content = http.request(
+                response, content = self.http.request(
                     login_url, method, headers=headers,
-                    body=urllib.parse.urlencode(body))
+                    body=urlencode(body))
             except self.HttpLib2Error as e:
                 raise PlantUMLConnectionError(e)
             if response.status != 200:
@@ -167,7 +157,7 @@ class PlantUML(object):
         :returns: the plantuml server image URL
         """
         return self.url + deflate_and_encode(plantuml_text)
-        
+
     def processes(self, plantuml_text):
         """Processes the plantuml text into the raw PNG image data.
         
@@ -182,8 +172,8 @@ class PlantUML(object):
         if response.status != 200:
             raise PlantUMLHTTPError(response, content)
         return content
-    
-    def processes_file(self, filename, outfile=None, errorfile=None):
+
+    def processes_file(self, filename, outfile=None, errorfile=None, directory=''):
         """Take a filename of a file containing plantuml text and processes
         it into a .png image.
         
@@ -199,28 +189,42 @@ class PlantUML(object):
                     an error written to ``errorfile``.
         """
         if outfile is None:
-            outfile = os.path.splitext(filename)[0] + '.png'
+            outfile = path.splitext(filename)[0] + '.png'
         if errorfile is None:
-            errorfile = os.path.splitext(filename)[0] + '_error.html'
-        data = open(filename, 'U').read()
+            errorfile = path.splitext(filename)[0] + '_error.html'
+        if directory and not path.exists(directory):
+            makedirs(directory)
+        data = open(filename).read()
         try:
             content = self.processes(data)
         except PlantUMLHTTPError as e:
-            err = open(errorfile, 'w')
+            err = open(path.join(directory, errorfile), 'w')
             err.write(e.content)
             err.close()
             return False
-        out = open(outfile, 'wb')
+        out = open(path.join(directory, outfile), 'wb')
         out.write(content)
         out.close()
         return True
 
+
+def _build_parser():
+    parser = ArgumentParser(description='Generate images from plantuml defined files using plantuml server')
+    parser.add_argument('files', metavar='filename', nargs='+',
+                        help='file(s) to generate images from')
+    parser.add_argument('-o', '--out', default='',
+                        help='directory to put the files into')
+    parser.add_argument('-s', '--server', default='http://www.plantuml.com/plantuml/img/',
+                        help='server to generate from, defaults to "http://www.plantuml.com/plantuml/img/"')
+    return parser
+
+
+def main():
+    args = _build_parser().parse_args()
+    pl = PlantUML(args.server)
+    print(list(map(lambda filename: {'filename': filename,
+                                'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)))
+
+
 if __name__ == '__main__':
-    pl = PlantUML()
-    for filename in sys.argv[1:]:
-        print(filename+':', end=' ') 
-        if pl.processes_file(filename):
-            print('success.')
-        else:
-            print('failure.')
-    
+    main()
