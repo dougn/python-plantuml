@@ -2,12 +2,13 @@
 
 from argparse import ArgumentParser
 from os import environ, path, makedirs
-from urllib import urlencode
+from six.moves.urllib.parse import urlencode
+from six.moves import xrange
 from zlib import compress
 
 import httplib2
 
-__version__ = 0, 2, 1
+__version__ = 0, 3, 0
 __version_string__ = '.'.join(str(x) for x in __version__)
 
 __author__ = 'Doug Napoleone, Samuel Marks'
@@ -45,9 +46,9 @@ class PlantUMLHTTPError(PlantUMLConnectionError):
 def deflate_and_encode(plantuml_text):
     """zlib compress the plantuml text and encode it for the plantuml server.
     """
-    zlibbed_str = compress(plantuml_text)
+    zlibbed_str = compress(plantuml_text.encode('utf-8'))
     compressed_string = zlibbed_str[2:-4]
-    return encode(compressed_string)
+    return encode(compressed_string.decode('latin-1'))
 
 
 def encode(data):
@@ -172,7 +173,7 @@ class PlantUML(object):
                 response, content = self.http.request(
                     login_url, method, headers=headers,
                     body=urlencode(body))
-            except self.HttpLib2Error, e:
+            except self.HttpLib2Error as e:
                 raise PlantUMLConnectionError(e)
             if response.status != 200:
                 raise PlantUMLHTTPError(response, content)
@@ -196,7 +197,7 @@ class PlantUML(object):
         url = self.get_url(plantuml_text)
         try:
             response, content = self.http.request(url, **self.request_opts)
-        except self.HttpLib2Error, e:
+        except self.HttpLib2Error as e:
             raise PlantUMLConnectionError(e)
         if response.status != 200:
             raise PlantUMLHTTPError(response, content)
@@ -226,7 +227,7 @@ class PlantUML(object):
         data = open(filename, 'U').read()
         try:
             content = self.processes(data)
-        except PlantUMLHTTPError, e:
+        except PlantUMLHTTPError as e:
             err = open(path.join(directory, errorfile), 'w')
             err.write(e.content)
             err.close()
@@ -251,8 +252,8 @@ def _build_parser():
 def main():
     args = _build_parser().parse_args()
     pl = PlantUML(args.server)
-    print map(lambda filename: {'filename': filename,
-                                'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)
+    print(list(map(lambda filename: {'filename': filename,
+                                'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)))
 
 
 if __name__ == '__main__':
