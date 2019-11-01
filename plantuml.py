@@ -1,19 +1,33 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
+import base64
+import string
 from argparse import ArgumentParser
 from io import open
 from os import environ, path, makedirs
-from six.moves.urllib.parse import urlencode
-from six.moves import xrange
 from zlib import compress
 
 import httplib2
+import six
+from six.moves.urllib.parse import urlencode
+
+if six.PY2:
+    from string import maketrans
+else:
+    maketrans = bytes.maketrans
 
 __version__ = 0, 3, 0
 __version_string__ = '.'.join(str(x) for x in __version__)
 
-__author__ = 'Doug Napoleone, Samuel Marks'
+__author__ = 'Doug Napoleone, Samuel Marks, Eric Frederich'
 __email__ = 'doug.napoleone+plantuml@gmail.com'
+
+
+plantuml_alphabet = string.digits + string.ascii_uppercase + string.ascii_lowercase + '-_'
+base64_alphabet   = string.ascii_uppercase + string.ascii_lowercase + string.digits + '+/'
+b64_to_plantuml = maketrans(base64_alphabet.encode('utf-8'), plantuml_alphabet.encode('utf-8'))
 
 
 class PlantUMLError(Exception):
@@ -49,52 +63,7 @@ def deflate_and_encode(plantuml_text):
     """
     zlibbed_str = compress(plantuml_text.encode('utf-8'))
     compressed_string = zlibbed_str[2:-4]
-    return encode(compressed_string.decode('latin-1'))
-
-
-def encode(data):
-    """encode the plantuml data which may be compresses in the proper
-    encoding for the plantuml server
-    """
-    res = ""
-    for i in xrange(0, len(data), 3):
-        if i + 2 == len(data):
-            res += _encode3bytes(ord(data[i]), ord(data[i + 1]), 0)
-        elif i + 1 == len(data):
-            res += _encode3bytes(ord(data[i]), 0, 0)
-        else:
-            res += _encode3bytes(ord(data[i]), ord(data[i + 1]), ord(data[i + 2]))
-    return res
-
-
-def _encode3bytes(b1, b2, b3):
-    c1 = b1 >> 2
-    c2 = ((b1 & 0x3) << 4) | (b2 >> 4)
-    c3 = ((b2 & 0xF) << 2) | (b3 >> 6)
-    c4 = b3 & 0x3F
-    res = ""
-    res += _encode6bit(c1 & 0x3F)
-    res += _encode6bit(c2 & 0x3F)
-    res += _encode6bit(c3 & 0x3F)
-    res += _encode6bit(c4 & 0x3F)
-    return res
-
-
-def _encode6bit(b):
-    if b < 10:
-        return chr(48 + b)
-    b -= 10
-    if b < 26:
-        return chr(65 + b)
-    b -= 26
-    if b < 26:
-        return chr(97 + b)
-    b -= 26
-    if b == 0:
-        return '-'
-    if b == 1:
-        return '_'
-    return '?'
+    return base64.b64encode(compressed_string).translate(b64_to_plantuml).decode('utf-8')
 
 
 class PlantUML(object):
