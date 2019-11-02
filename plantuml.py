@@ -7,6 +7,7 @@ import string
 from argparse import ArgumentParser
 from io import open
 from os import environ, path, makedirs
+from platform import python_version_tuple
 from zlib import compress
 
 import httplib2
@@ -24,9 +25,8 @@ __version_string__ = '.'.join(str(x) for x in __version__)
 __author__ = 'Doug Napoleone, Samuel Marks, Eric Frederich'
 __email__ = 'doug.napoleone+plantuml@gmail.com'
 
-
 plantuml_alphabet = string.digits + string.ascii_uppercase + string.ascii_lowercase + '-_'
-base64_alphabet   = string.ascii_uppercase + string.ascii_lowercase + string.digits + '+/'
+base64_alphabet = string.ascii_uppercase + string.ascii_lowercase + string.digits + '+/'
 b64_to_plantuml = maketrans(base64_alphabet.encode('utf-8'), plantuml_alphabet.encode('utf-8'))
 
 
@@ -50,7 +50,7 @@ class PlantUMLHTTPError(PlantUMLConnectionError):
     """
 
     def __init__(self, response, content, *args, **kwdargs):
-        super(PlantUMLConnectionError, self).__init__(*args, **kwdargs)
+        super(PlantUMLConnectionError, self).__init__(*args)
         self.response = response
         self.content = content
         if not self.message:
@@ -94,19 +94,23 @@ class PlantUML(object):
                     
     """
 
-    def __init__(self, url, basic_auth={}, form_auth={},
-                 http_opts={}, request_opts={}):
+    def __init__(self, url, basic_auth=None, form_auth=None,
+                 http_opts=None, request_opts=None):
+        if http_opts is None:
+            http_opts = {}
         self.HttpLib2Error = httplib2.HttpLib2Error
         self.url = url
-        self.request_opts = request_opts
+        self.request_opts = request_opts or {}
         self.auth_type = 'basic_auth' if basic_auth else (
-            'form_auth' if form_auth else None)
-        self.auth = basic_auth if basic_auth else (
-            form_auth if form_auth else None)
+            'form_auth' if form_auth is not None else None)
+        self.auth = (form_auth if form_auth else None) if basic_auth is None else basic_auth
 
         # Proxify
-        try:
+        if python_version_tuple()[0] == '2':
             from urlparse import urlparse
+        else:
+            from urllib.parse.urlparse import urlparse
+        try:
             import socks
 
             proxy_uri = urlparse(environ.get('HTTPS_PROXY', environ.get('HTTP_PROXY')))
@@ -185,7 +189,8 @@ class PlantUML(object):
                     to. If this is not supplined, then it will be the
                     input ``filename`` with the extension replaced with
                     '_error.html'.
-        :returns: ``True`` if the image write succedded, ``False`` if there was
+        :param str directory: Directory to find files within.
+        :returns: ``True`` if the image write succeeded, ``False`` if there was
                     an error written to ``errorfile``.
         """
         if outfile is None:
@@ -223,7 +228,7 @@ def main():
     args = _build_parser().parse_args()
     pl = PlantUML(args.server)
     print(list(map(lambda filename: {'filename': filename,
-                                'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)))
+                                     'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)))
 
 
 if __name__ == '__main__':
