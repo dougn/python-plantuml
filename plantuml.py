@@ -50,12 +50,12 @@ class PlantUMLHTTPError(PlantUMLConnectionError):
     """
 
     def __init__(self, response, content, *args, **kwdargs):
-        super(PlantUMLConnectionError, self).__init__(*args, **kwdargs)
         self.response = response
         self.content = content
-        if not self.message:
+        if not getattr(self, 'message', None):
             self.message = "%d: %s" % (
                 self.response.status, self.response.reason)
+        super(PlantUMLConnectionError, self).__init__(self.message, *args, **kwdargs)
 
 
 def deflate_and_encode(plantuml_text):
