@@ -29,6 +29,7 @@ plantuml_alphabet = string.digits + string.ascii_uppercase + string.ascii_lowerc
 base64_alphabet   = string.ascii_uppercase + string.ascii_lowercase + string.digits + '+/'
 b64_to_plantuml = maketrans(base64_alphabet.encode('utf-8'), plantuml_alphabet.encode('utf-8'))
 
+SERVER_URL = "http://www.plantuml.com/plantuml/img/"
 
 class PlantUMLError(Exception):
     """
@@ -94,7 +95,7 @@ class PlantUML(object):
                     
     """
 
-    def __init__(self, url, basic_auth={}, form_auth={},
+    def __init__(self, url=SERVER_URL, basic_auth={}, form_auth={},
                  http_opts={}, request_opts={}):
         self.HttpLib2Error = httplib2.HttpLib2Error
         self.url = url
@@ -214,8 +215,8 @@ def _build_parser():
                         help='file(s) to generate images from')
     parser.add_argument('-o', '--out', default='',
                         help='directory to put the files into')
-    parser.add_argument('-s', '--server', default='http://www.plantuml.com/plantuml/img/',
-                        help='server to generate from, defaults to "http://www.plantuml.com/plantuml/img/"')
+    parser.add_argument('-s', '--server', default=SERVER_URL,
+                        help='server to generate from, defaults to "%s"'.format(SERVER_URL))
     return parser
 
 
