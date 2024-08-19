@@ -2,3 +2,4 @@ sphinx
 httplib2
 twine
 wheel
+six

@@ -24,9 +24,8 @@ __version_string__ = '.'.join(str(x) for x in __version__)
 __author__ = 'Doug Napoleone, Samuel Marks, Eric Frederich'
 __email__ = 'doug.napoleone+plantuml@gmail.com'
 
-
 plantuml_alphabet = string.digits + string.ascii_uppercase + string.ascii_lowercase + '-_'
-base64_alphabet   = string.ascii_uppercase + string.ascii_lowercase + string.digits + '+/'
+base64_alphabet = string.ascii_uppercase + string.ascii_lowercase + string.digits + '+/'
 b64_to_plantuml = maketrans(base64_alphabet.encode('utf-8'), plantuml_alphabet.encode('utf-8'))
 
 
@@ -173,7 +172,7 @@ class PlantUML(object):
             raise PlantUMLHTTPError(response, content)
         return content
 
-    def processes_file(self, filename, outfile=None, errorfile=None, directory=''):
+    def processes_file(self, filename, outfile=None, errorfile=None, directory='', enconding="utf8"):
         """Take a filename of a file containing plantuml text and processes
         it into a .png image.
         
@@ -185,6 +184,7 @@ class PlantUML(object):
                     to. If this is not supplined, then it will be the
                     input ``filename`` with the extension replaced with
                     '_error.html'.
+        :param str encoding: Input file encoding, default UTF-8
         :returns: ``True`` if the image write succedded, ``False`` if there was
                     an error written to ``errorfile``.
         """
@@ -194,7 +194,7 @@ class PlantUML(object):
             errorfile = path.splitext(filename)[0] + '_error.html'
         if directory and not path.exists(directory):
             makedirs(directory)
-        data = open(filename).read()
+        data = open(filename, encoding=enconding).read()
         try:
             content = self.processes(data)
         except PlantUMLHTTPError as e:
@@ -223,7 +223,7 @@ def main():
     args = _build_parser().parse_args()
     pl = PlantUML(args.server)
     print(list(map(lambda filename: {'filename': filename,
-                                'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)))
+                                     'gen_success': pl.processes_file(filename, directory=args.out)}, args.files)))
 
 
 if __name__ == '__main__':
