@@ -23,6 +23,6 @@ setup(
         'Topic :: Utilities',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    install_requires=['httplib2'],
+    install_requires=['httplib2', 'six'],
     keywords=['plantuml', 'uml']
 )
